@@ -1,0 +1,27 @@
+ticketservice:
+  create-n-ticket-retry: 3
+spring:
+  jpa:
+#    show-sql: true
+#    generate-ddl: true
+    properties:
+      jakarta:
+        persistence:
+          schema-generation:
+#            create-source: metadata
+#            drop-source: metadata
+#            database:
+#              action: drop-and-create
+#              create-target: create.sql
+#              drop-target: drop.sql
+    hibernate:
+      ddl-auto: create
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy
+        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyComponentPathImpl
+  datasource:
+#    url: jdbc:h2:file:./testdb;DB_CLOSE_DELAY=-1;NON_KEYWORDS=KEY,VALUE
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;NON_KEYWORDS=KEY,VALUE
+    driver-class-name: org.h2.Driver
+    username: SA
+    password: password
