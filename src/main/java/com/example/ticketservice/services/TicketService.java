@@ -42,7 +42,7 @@ public class TicketService {
 	}
 
 	public List<Ticket> createNTicketsWithRetry(Screening screening, @Min(1) Integer numberOfTickets) {
-		for (int i = 1; i <= numberOfTickets; i++) {
+		for (int i = 1; i <= createNTicketRetry; i++) {
 			log.debug("createNTicketsWithRetry retry#: "+i);
 			try {
 				List<Seat> seats = seatService.getAllAvailableSeatsForScreening(screening);
