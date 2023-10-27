@@ -34,11 +34,11 @@ public class TicketService {
 		return ticketRepository.findById(id);
 	}
 
-	@Transactional
 	public List<Ticket> createTickets(Screening screening, List<Seat> seats) {
-		return seats.stream()
-				.map(seat -> ticketRepository.save(new Ticket(screening, seat)))
-				.toList();
+		List<Ticket> tickets = seats.stream()
+		.map(seat -> new Ticket(screening, seat))
+		.toList();
+		return ticketRepository.saveAll(tickets);
 	}
 
 	public List<Ticket> createNTicketsWithRetry(Screening screening, @Min(1) Integer numberOfTickets) {
@@ -52,7 +52,7 @@ public class TicketService {
 				return createTickets(screening, seats.subList(0, numberOfTickets));
 			} catch (DataIntegrityViolationException e) {
 				log.info("createNTicketsWithRetry failed for "+i);
-				if (i == numberOfTickets) {
+				if (i == createNTicketRetry) {
 					throw e;
 				}
 			}
