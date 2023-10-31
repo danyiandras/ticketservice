@@ -140,7 +140,7 @@ public class TicketController {
 		Screening screening = screeningService.getById(screeningId)
 				.orElseThrow(() -> new ResponseStatusException(
 						HttpStatus.NOT_FOUND, "Screening id not found: "+screeningId));
-		return ticketService.createNTicketsWithRetry(screening, numberOfTickets).stream()
+		return ticketService.createNTicketsWithRetryTemplate(screening, numberOfTickets).stream()
 				.<TicketDto>map(ticket -> MappedDto.convertToDto(ticket, TicketDto.class,  modelMapper))
 				.toList()
 				;

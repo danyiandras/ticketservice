@@ -1,9 +1,15 @@
 package com.example.ticketservice.services;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.retry.RetryContext;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
+import org.springframework.retry.support.RetryTemplate;
+import org.springframework.retry.support.RetryTemplateBuilder;
 import org.springframework.stereotype.Service;
 
 import com.example.ticketservice.TicketServiceApplicationConfigurationProperties;
@@ -22,12 +28,16 @@ public class TicketService {
 
 	private final TicketRepository ticketRepository;
 	private final SeatService seatService;
-	private final int createNTicketRetry;
+	private final RetryTemplate retryTemplate;
 	
 	public TicketService(TicketRepository ticketRepository, SeatService seatService, TicketServiceApplicationConfigurationProperties config) {
 		this.ticketRepository = ticketRepository;
 		this.seatService = seatService;
-		this.createNTicketRetry = config.getCreateNTicketRetry();
+		this.retryTemplate = new RetryTemplateBuilder()
+				.fixedBackoff(Duration.ofMillis(1))
+				.maxAttempts(config.getCreateNTicketRetry())
+				.retryOn(List.of(DataIntegrityViolationException.class))
+				.build();
 	}
 
 	public Optional<Ticket> getById(Long id) {
@@ -41,23 +51,30 @@ public class TicketService {
 		return ticketRepository.saveAll(tickets);
 	}
 
+    @Retryable(retryFor = DataIntegrityViolationException.class, 
+    		maxAttemptsExpression = "#{${ticketservice.create-n-ticket-retry}}", 
+    		backoff = @Backoff(delay = 1, maxDelay = 1))
 	public List<Ticket> createNTicketsWithRetry(Screening screening, @Min(1) Integer numberOfTickets) {
-		for (int i = 1; i <= createNTicketRetry; i++) {
-			log.debug("createNTicketsWithRetry retry#: "+i);
-			try {
-				List<Seat> seats = seatService.getAllAvailableSeatsForScreening(screening);
-				if (seats.size() < numberOfTickets) {
-					throw new IllegalArgumentException("Not enough available seats: "+numberOfTickets);
-				}
-				return createTickets(screening, seats.subList(0, numberOfTickets));
-			} catch (DataIntegrityViolationException e) {
-				log.info("createNTicketsWithRetry failed for "+i);
-				if (i == createNTicketRetry) {
-					throw e;
-				}
-			}
+		log.debug("createNTicketsWithRetry");
+		List<Seat> seats = seatService.getAllAvailableSeatsForScreening(screening);
+		if (seats.size() < numberOfTickets) {
+			throw new IllegalArgumentException("Not enough available seats: " + numberOfTickets);
 		}
-		throw new DataIntegrityViolationException("Should never reach this line");
+//		createTickets(screening, seats.subList(0, 1));
+		return createTickets(screening, seats.subList(0, numberOfTickets));
+	}
+
+	public List<Ticket> createNTicketsWithRetryTemplate(Screening screening, @Min(1) Integer numberOfTickets) {
+		return retryTemplate.execute(c -> _createNTicketsWithRetryTemplate(c, screening, numberOfTickets));
+	}
+
+	private List<Ticket> _createNTicketsWithRetryTemplate(RetryContext retryContext,  Screening screening, Integer numberOfTickets) {
+		log.info("createNTicketsWithRetry"+retryContext.getRetryCount());
+		List<Seat> seats = seatService.getAllAvailableSeatsForScreening(screening);
+		if (seats.size() < numberOfTickets) {
+			throw new IllegalArgumentException("Not enough available seats: " + numberOfTickets);
+		}
+		return createTickets(screening, seats.subList(0, numberOfTickets));
 	}
 
 	@Transactional

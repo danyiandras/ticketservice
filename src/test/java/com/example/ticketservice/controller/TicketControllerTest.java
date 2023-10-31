@@ -11,6 +11,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 
+import org.aspectj.lang.annotation.Before;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -18,6 +19,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.example.ticketservice.GetAllAvailableSeatsForScreeningMethodConcurrentCreateAspect;
 import com.example.ticketservice.controller.dto.MovieDto;
 import com.example.ticketservice.controller.dto.ScreeningDto;
 import com.example.ticketservice.controller.dto.SeatDto;
@@ -30,6 +32,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @AutoConfigureMockMvc
 class TicketControllerTest {
 
+	@Autowired
+	GetAllAvailableSeatsForScreeningMethodConcurrentCreateAspect getAllAvailableSeatsMethodAspect;
+	
 	@Autowired
 	private ObjectMapper objectMapper;
 
@@ -234,6 +239,44 @@ class TicketControllerTest {
 				.contentType(MediaType.APPLICATION_JSON))
 		.andExpect(status().is(404));
 		
+	}
+
+	
+	@Test
+	void createTicketNRetry_409() throws Exception {
+		MovieDto movieTheGodfather = objectMapper.readValue(mvc.perform(get("/movie/title/The Godfather")
+				.contentType(MediaType.APPLICATION_JSON))
+		.andExpect(status().isOk())
+		.andReturn()
+		.getResponse()
+		.getContentAsString(), MovieDto.class);
+
+		TheaterDto theaterOne = objectMapper.readValue(mvc.perform(get("/theater/name/Theater One")
+				.contentType(MediaType.APPLICATION_JSON))
+		.andExpect(status().isOk())
+		.andReturn()
+		.getResponse()
+		.getContentAsString(), TheaterDto.class);
+
+		ScreeningDto[] screeningsPlaying = objectMapper.readValue(mvc.perform(get("/screening")
+				.param("startTime", searchStart.format(DateTimeFormatter.ISO_ZONED_DATE_TIME))
+				.param("endTime", searchEnd.format(DateTimeFormatter.ISO_ZONED_DATE_TIME))
+				.param("movieId", movieTheGodfather.getId().toString())
+				.param("theaterId", theaterOne.getId().toString())
+				.contentType(MediaType.APPLICATION_JSON))
+		.andExpect(status().isOk())
+		.andReturn()
+		.getResponse()
+		.getContentAsString(), ScreeningDto[].class);
+
+		getAllAvailableSeatsMethodAspect.on = true;
+		mvc.perform(post("/ticket/booknretry")
+				.param("screeningId", screeningsPlaying[0].getId().toString())
+				.param("numberOfTickets", "3")
+				.contentType(MediaType.APPLICATION_JSON))
+		.andExpect(status().isConflict())
+		;
+		getAllAvailableSeatsMethodAspect.on = false;
 	}
 
 	@Test
